@@ -1,0 +1,9 @@
+__pycache__/
+out.txt
+*.png
+venv/Include
+venv/Lib
+venv/Scripts
+venv/share
+venv/pyvenv.cfg
+causalbo/result_plots

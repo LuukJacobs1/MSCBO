@@ -5,10 +5,7 @@ from gpytorch.means.mean import Mean
 from gpytorch.kernels import RBFKernel
 import torch
 
-
-# -----------------------------
 # Mean function using batched + cached do-statistics
-# -----------------------------
 class CausalMean(Mean):
     """
     Mean(x) = E[Y | do(V = x)]
@@ -44,9 +41,7 @@ class CausalMean(Mean):
         return mean_out.view(*x.shape[:-1])
 
 
-# -----------------------------
 # Kernel with heteroskedastic augmentation: k(x,x') = k_RBF(x,x') + sigma(x)sigma(x')
-# -----------------------------
 class CausalRBF(RBFKernel):
     """
     Adds heteroskedastic term using sqrt(Var[Y | do(V=x)]).
@@ -134,9 +129,7 @@ class CausalRBF(RBFKernel):
         return base + het
 
 
-# -----------------------------
 # Utility: negate any acquisition function (for minimization)
-# -----------------------------
 class NegateAcquisitionFunction(AcquisitionFunction):
     def __init__(self, acq_function: AcquisitionFunction):
         super().__init__(acq_function.model)

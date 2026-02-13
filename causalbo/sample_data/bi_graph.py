@@ -3,8 +3,7 @@ from causalbo.do_calculus import SCM
 import torch
 import networkx as nx
 
-# Sample DAG and SCM using toy dataset provided by V. Aglietti et al.
-# CausalBO does not require data to be organized in this fashion, but it does help to keep it organized in a similar manner.
+# Sample SCM provided by Bareinboim et al. Aribitrary normal node connections
 class BiGraph(object):
     # epsilon_X
 

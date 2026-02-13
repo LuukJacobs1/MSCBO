@@ -33,40 +33,11 @@ class MultiSourceGP:
 
 def get_acqf(model: SCM, source: SingleTaskGP, maximize: bool, f_max: torch.Tensor):
 
-    # if maximize:
-    #     # Posterior Mean acquisition
-    #     _, current_value = optimize_acqf(
-    #         acq_function=PosteriorMean(model),
-    #         bounds=torch.tensor(list(subdict_with_keys(source.interventional_domain, source.interventional_domain.keys()).values()), dtype=torch.float64).t(), # All bounds except for the fidelities
-    #         q=1,
-    #         num_restarts=8,
-    #         raw_samples=30,
-    #     )
-    
-    # else:
-    #     # Negated Posterior Mean acquisition (minimization)
-    #     _, current_value = optimize_acqf(
-    #         acq_function=NegateAcquisitionFunction(PosteriorMean(model)),
-    #         bounds=torch.tensor(list(subdict_with_keys(source.interventional_domain, source.interventional_domain.keys()).values()), dtype=torch.float64).t(), # All bounds except for the fidelities
-    #         q=1,
-    #         num_restarts=8,
-    #         raw_samples=30,
-    #     )
-
     return qKnowledgeGradient(
         model=model,
         num_fantasies=32,
         current_value=f_max,
     )
-
-    if maximize:
-        # Expected Improvement for maximization
-        acq_function = LogExpectedImprovement(model=model, best_f=f_max)  # Replace 0 with the current best if available
-    else:
-        # Negated Expected Improvement for minimization
-        acq_function = LogExpectedImprovement(model=model, best_f=f_max, maximize=False)  # Replace 0 with the current best if available
-
-    return acq_function
 
 def optimize_acquisition(args):
     '''Optimize the acquisition function to find the next point to evaluate.'''
@@ -142,19 +113,16 @@ def multi_source_optimization(sources: list[SCM], source_costs: list[int], groun
             s_idx, X_next_max = max(enumerate(X_next), key=lambda x: x[1][0])
             value_assignment = np.array(torch.flatten(X_next_max[1]))
 
+            # Perform intervention and collect expected value
             if ground_truth.__class__.__name__ == 'ToyGraph':
                 new_y = ground_truth.sample(n=1,do={var: value_assignment[idx] for idx, var in enumerate(sources[s_idx].interventional_domain.keys())})
                 new_y = torch.flatten(new_y[ground_truth.graph.output_node])
                 Y_next = new_y
 
             elif ground_truth.__class__.__name__ == 'PSAGraph':
-
-                # Use if calculating global optimum
-                # new_y = ground_truth.sample(n=1,do={var: value_assignment[idx] for idx, var in enumerate(sources[s_idx].interventional_domain.keys())})
-                # new_y = torch.flatten(new_y[ground_truth.graph.output_node])
-                # Y_next = new_y
+                
                 do={var: value_assignment[idx] for idx, var in enumerate(sources[s_idx].interventional_domain.keys())}
-                do.update({'AGE': 55})
+                do.update({'AGE': 55}) # Assume AGE of 55 for PSA example
                 new_y = ground_truth.sample(n=200,do=do)
                 new_y = torch.mean(torch.flatten(new_y[ground_truth.graph.output_node]), dim = 0, keepdim=True)
                 Y_next = new_y
@@ -170,10 +138,6 @@ def multi_source_optimization(sources: list[SCM], source_costs: list[int], groun
                 new_y = ground_truth.sample(n=200,do=do)
                 new_y = torch.mean(torch.flatten(new_y[ground_truth.graph.output_node]), dim = 0, keepdim=True)
                 Y_next = new_y
-                # Calculate the corresponding outputs
-                # Y_next = torch.tensor([E_output_given_do(interventional_variable=sources[s_idx].interventional_domain.keys(), 
-                #                     interventional_value=value_assignment, 
-                #                     causal_model=ground_truth.true_graph)], dtype = torch.float64)
             
             multi_source_gp.gps[s_idx].set_train_data(inputs=torch.cat([multi_source_gp.gps[s_idx].train_inputs[0], X_next_max[1]]), targets=torch.cat([multi_source_gp.gps[s_idx].train_targets, Y_next]), strict=False)
             fit_gpytorch_model(ExactMarginalLogLikelihood(multi_source_gp.gps[s_idx].likelihood, multi_source_gp.gps[s_idx]))
@@ -215,17 +179,7 @@ def multi_source_optimization(sources: list[SCM], source_costs: list[int], groun
             s_idx, X_next_max = max(enumerate(X_next), key=lambda x: x[1][0])
             value_assignment = np.array(torch.flatten(X_next_max[1]))
 
-            # Observe new point based on source and design
-            best_gp = multi_source_gp.gps[s_idx]
-            val = torch.from_numpy(value_assignment)
-            # Get the posterior at X
-            posterior = best_gp.posterior(val.unsqueeze(0))
-            # Sample from the posterior (num_samples = how many hallucinations you want)
-            samples = posterior.rsample(torch.Size([20]))
-            samples = torch.tensor([torch.mean(samples.squeeze())])
-            print(f"Hallucinated point: {samples}")
-            # print(f"E_point: {-1 * E_output_given_do(interventional_variable = sources[s_idx].interventional_domain.keys(), interventional_value = value_assignment, causal_model = ground_truth.graph, n_samples = 200)}")
-
+            # Perform intervention and collect expected value
             if ground_truth.__class__.__name__ == 'ToyGraph':
                 new_y = ground_truth.sample(n=1,do={var: value_assignment[idx] for idx, var in enumerate(sources[s_idx].interventional_domain.keys())})
                 new_y = torch.flatten(new_y[ground_truth.graph.output_node])
@@ -233,7 +187,7 @@ def multi_source_optimization(sources: list[SCM], source_costs: list[int], groun
 
             elif ground_truth.__class__.__name__ == 'PSAGraph':
                 do={var: value_assignment[idx] for idx, var in enumerate(sources[s_idx].interventional_domain.keys())}
-                do.update({'AGE': 55})
+                do.update({'AGE': 55}) # Assume AGE 55 for PSA example
                 new_y = ground_truth.sample(n=200,do=do)
                 new_y = torch.mean(torch.flatten(new_y[ground_truth.graph.output_node]), dim = 0, keepdim=True)
                 Y_next = new_y
@@ -250,9 +204,6 @@ def multi_source_optimization(sources: list[SCM], source_costs: list[int], groun
                 new_y = ground_truth.sample(n=200,do=do)
                 new_y = torch.mean(torch.flatten(new_y[ground_truth.graph.output_node]), dim = 0, keepdim=True)
                 Y_next = new_y
-                # Y_next = torch.tensor([E_output_given_do(interventional_variable=sources[s_idx].interventional_domain.keys(), 
-                #                     interventional_value=value_assignment, 
-                #                     causal_model=ground_truth.true_graph)], dtype = torch.float64)
             
             multi_source_gp.gps[s_idx].set_train_data(inputs=torch.cat([multi_source_gp.gps[s_idx].train_inputs[0], X_next_max[1]]), targets=torch.cat([multi_source_gp.gps[s_idx].train_targets, Y_next]), strict=False)
             fit_gpytorch_model(ExactMarginalLogLikelihood(multi_source_gp.gps[s_idx].likelihood, multi_source_gp.gps[s_idx]))

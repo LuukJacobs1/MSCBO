@@ -9,8 +9,6 @@ import torch
 
 # Sample DAG and SCM using medical dataset provided by V. Aglietti et al.
 # CausalBO does not require data to be organized in this fashion, but it does help to keep it organized in a similar manner.
-
-
 class AgeModel(StochasticModel):
     def draw_samples(self, num_samples: int):
         """Draws samples for the fitted model."""

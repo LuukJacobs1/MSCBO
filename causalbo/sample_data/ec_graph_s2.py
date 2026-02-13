@@ -3,8 +3,7 @@ from causalbo.do_calculus import SCM
 import torch
 import pandas as pd
 
-# Sample DAG and SCM using medical dataset provided by V. Aglietti et al.
-# CausalBO does not require data to be organized in this fashion, but it does help to keep it organized in a similar manner.
+# Sample DAG and SCM using data provided by the Bayesian Network repository
 class EcoliGraph(object):
     def aceB(self, input_tensor, noise_mean=0, noise_stdev=0.2921):
         input_tensor = input_tensor[..., :1]  # icdA is the only input

@@ -19,7 +19,7 @@ import torch
 import random
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-dtype = torch.float64  # keep float64 unless you want float32 for speed
+dtype = torch.float64
 
 def CBOLoopMultiSource(observational_samples: list[DataFrame], graphs: list[SCM], exploration_sets: list[list[list[str]]] | None, 
             num_steps: int, num_initial_obs: int, observation_cost: int, intervention_cost: int, num_obs_per_step: int, num_max_allowed_obs: int, 
@@ -88,7 +88,7 @@ def CBOLoopMultiSource(observational_samples: list[DataFrame], graphs: list[SCM]
             print(f'Iteration {iteration_count}')
             print(f'Current global optimal set-value-result = Source {global_optimal_source}: {global_optimal_set}: {global_optimal_value} -> {global_optimum}')
 
-            # Parallel optimization and foward pass over all sources 
+            # Parallel optimization and forward pass over all sources 
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 futures = [executor.submit(optimization_threaded, (
                     idx, 
@@ -136,10 +136,6 @@ def CBOLoopMultiSource(observational_samples: list[DataFrame], graphs: list[SCM]
                     new_y = torch.flatten(new_y[objective_function.graph.output_node])
 
                 elif objective_function.__class__.__name__ == 'PSAGraph':
-                    # Use if searching for a global optimum
-                    # new_y = objective_function.sample(n=1,do={var: x_values[idx].item() for idx, var in enumerate(global_best_point[2])})
-                    # new_y = torch.flatten(new_y[objective_function.graph.output_node])
-                    # Use if calculating expected value
                     do = {var: x_values[idx].item() for idx, var in enumerate(global_best_point[2])}
                     do.update({'AGE': 55})
                     new_y = objective_function.sample(n=200,do=do)
@@ -154,7 +150,6 @@ def CBOLoopMultiSource(observational_samples: list[DataFrame], graphs: list[SCM]
                     new_y = objective_function.sample(global_best_point[2],x_values.numpy())
 
                 else:
-                    # new_y = torch.tensor([E_output_given_do(interventional_variable=global_best_point[2], interventional_value=torch.Tensor(x_values), causal_model=objective_function.graph)])
                     do = {var: x_values[idx].item() for idx, var in enumerate(global_best_point[2])}
                     new_y = objective_function.sample(n=200,do=do)
                     new_y = torch.mean(torch.flatten(new_y[objective_function.graph.output_node]))
@@ -171,17 +166,6 @@ def CBOLoopMultiSource(observational_samples: list[DataFrame], graphs: list[SCM]
 
                 if verbose:
                     print(f'Updating GP posterior for {global_best_point[0]}...')
-
-                # for k in GPs.keys():
-                    
-                #     gp = GPs[k]
-                #     gp.set_train_data(inputs=interventional_data[:, :-1], targets=torch.flatten(interventional_data[:, -1:]), strict=False)
-                            
-                #     mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-                #     fit_gpytorch_model(mll)
-
-                #     GPs[k] = gp
-                #     D_i[k] = interventional_data
 
 
                 gp = GPs[global_best_point[0]]
@@ -208,8 +192,6 @@ def CBOLoopMultiSource(observational_samples: list[DataFrame], graphs: list[SCM]
                     num_iters_without_improvement += 1
 
             iteration_count += 1
-        # optimum_over_time.append(global_optimum)
-        # cost_over_time.append(total_cost)
 
     elif cutoff_criterion == "iteration":
 
@@ -272,12 +254,9 @@ def CBOLoopMultiSource(observational_samples: list[DataFrame], graphs: list[SCM]
                     new_y = torch.flatten(new_y[objective_function.graph.output_node])
 
                 elif objective_function.__class__.__name__ == 'PSAGraph':
-                    # Use if searching for a global optimum
-                    # new_y = objective_function.sample(n=1,do={var: x_values[idx].item() for idx, var in enumerate(global_best_point[2])})
-                    # new_y = torch.flatten(new_y[objective_function.graph.output_node])
-
-                    # Use if calculating expected value
-                    new_y = objective_function.sample(n=200,do={var: x_values[idx].item() for idx, var in enumerate(global_best_point[2])}.update({'AGE': 55}))
+                    do = {var: x_values[idx].item() for idx, var in enumerate(global_best_point[2])}
+                    do.update({'AGE': 55})
+                    new_y = objective_function.sample(n=200,do=do)
                     new_y = torch.mean(torch.flatten(new_y[objective_function.graph.output_node]))
 
                 elif objective_function.__class__.__name__ == 'EcoliGraph':
@@ -286,7 +265,6 @@ def CBOLoopMultiSource(observational_samples: list[DataFrame], graphs: list[SCM]
                     new_y = torch.mean(torch.flatten(new_y[objective_function.graph.output_node]))
 
                 else:
-                    # new_y = torch.tensor([E_output_given_do(interventional_variable=global_best_point[2], interventional_value=torch.Tensor(x_values), causal_model=objective_function.graph)])
                     do = {var: x_values[idx].item() for idx, var in enumerate(global_best_point[2])}
                     new_y = objective_function.sample(n=200,do=do)
                     new_y = torch.mean(torch.flatten(new_y[objective_function.graph.output_node]))
@@ -341,27 +319,8 @@ def CBOLoopMultiSource(observational_samples: list[DataFrame], graphs: list[SCM]
 
 def get_acqf(model: SCM, interventional_domain: dict[list[float]], s, type_trial: Literal['min', 'max'], global_optimum: float):
     
-    # if type_trial == 'max':
-    #     # Posterior Mean acquisition
-    #     _, current_value = optimize_acqf(
-    #         acq_function=PosteriorMean(model),
-    #         bounds=torch.tensor(list(subdict_with_keys(interventional_domain, s).values()), dtype=torch.float32).t(), # All bounds except for the fidelities
-    #         q=1,
-    #         num_restarts=8,
-    #         raw_samples=30,
-    #     )      
-    
-    # else:
-    #     # Negated Posterior Mean acquisition (minimization)
-    #     _, current_value = optimize_acqf(
-    #         acq_function=NegateAcquisitionFunction(PosteriorMean(model)),
-    #         bounds=torch.tensor(list(subdict_with_keys(interventional_domain, s).values()), dtype=torch.float32).t(), # All bounds except for the fidelities
-    #         q=1,
-    #         num_restarts=8,
-    #         raw_samples=30,
-    #     )
 
-    # # # KG requires a scalar "current best" value
+    # KG requires a scalar "current best" value
     current_value = torch.tensor(global_optimum, dtype=dtype, device=device)
 
     return qKnowledgeGradient(
@@ -369,16 +328,6 @@ def get_acqf(model: SCM, interventional_domain: dict[list[float]], s, type_trial
         num_fantasies=32,
         current_value=current_value,
     )
-
-    
-    if type_trial == 'max':
-        # Expected Improvement for maximization
-        acq_function = ExpectedImprovement(model=model, best_f=global_optimum)  
-    else:
-        # Negated Expected Improvement for minimization
-        acq_function = ExpectedImprovement(model=model, best_f=global_optimum, maximize=False) 
-
-    return acq_function
 
 
 def optimization_threaded(args):

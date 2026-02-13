@@ -144,17 +144,13 @@ def CBOLoop(observational_samples: DataFrame, graph: SCM, exploration_set: list[
 
                 total_cost += intervention_cost * len(best_point[2])
 
+                # Perform intervention and collect expected value
                 if objective_function.__class__.__name__ == 'ToyGraph':
                     new_y = objective_function.sample(n=1,do={var: x_values[idx].item() for idx, var in enumerate(best_point[2])})
                     new_y = torch.flatten(new_y[objective_function.graph.output_node])
 
                 elif objective_function.__class__.__name__ == 'PSAGraph':
 
-                    # Use if searching for a global optimum 
-                    # new_y = objective_function.sample(n=1,do={var: x_values[idx].item() for idx, var in enumerate(best_point[2])})
-                    # new_y = torch.flatten(new_y[objective_function.graph.output_node])
-
-                    # Use if calculating expected value
                     do = {var: x_values[idx].item() for idx, var in enumerate(best_point[2])}
                     do.update({'AGE': 55})
                     new_y = objective_function.sample(n=200,do=do)
@@ -166,7 +162,6 @@ def CBOLoop(observational_samples: DataFrame, graph: SCM, exploration_set: list[
                     new_y = torch.mean(torch.flatten(new_y[objective_function.graph.output_node]))
                 
                 else:
-                    # new_y = torch.tensor([E_output_given_do(interventional_variable=best_point[2], interventional_value=torch.Tensor(x_values), causal_model=objective_function.true_graph)])
                     do = {var: x_values[idx].item() for idx, var in enumerate(best_point[2])}
                     new_y = objective_function.sample(n=200,do=do)
                     new_y = torch.mean(torch.flatten(new_y[objective_function.graph.output_node]))
@@ -212,7 +207,7 @@ def CBOLoop(observational_samples: DataFrame, graph: SCM, exploration_set: list[
 
     elif cutoff_criterion == "cost":
 
-        while total_cost < cost_cutoff / 2: # Change based on the amount of sources used later!!!!
+        while total_cost < cost_cutoff / 2: # Change based on the amount of sources used
 
             optimum_over_time.append(global_optimum.item() if type(global_optimum) == torch.Tensor else global_optimum)
             cost_over_time.append(total_cost)
@@ -270,6 +265,7 @@ def CBOLoop(observational_samples: DataFrame, graph: SCM, exploration_set: list[
 
                 total_cost += intervention_cost * len(best_point[2])
 
+                # Perform intervention and collect expected value
                 if objective_function.__class__.__name__ == 'ToyGraph':
                     new_y = objective_function.sample(n=1,do={var: x_values[idx].item() for idx, var in enumerate(best_point[2])})
                     new_y = torch.flatten(new_y[objective_function.graph.output_node])
@@ -286,7 +282,6 @@ def CBOLoop(observational_samples: DataFrame, graph: SCM, exploration_set: list[
                     new_y = torch.mean(torch.flatten(new_y[objective_function.graph.output_node]))
                 
                 else:
-                    # new_y = torch.tensor([E_output_given_do(interventional_variable=best_point[2], interventional_value=torch.Tensor(x_values), causal_model=objective_function.true_graph)])
                     do = {var: x_values[idx].item() for idx, var in enumerate(best_point[2])}
                     new_y = objective_function.sample(n=200,do=do)
                     new_y = torch.mean(torch.flatten(new_y[objective_function.graph.output_node]))
@@ -335,16 +330,12 @@ def CBOLoop(observational_samples: DataFrame, graph: SCM, exploration_set: list[
 
     return (global_optimum, global_optimal_set, GPs[''.join(global_optimal_set)], D_i[''.join(global_optimal_set)], D_o, cost_over_time, optimum_over_time)
 
+# Threaded optimization of the acquisition functions
 def intervention_threaded(args):
 
     s, GPs, type_trial, interventional_domain, global_optimum = args
     set_identifier = ''.join(s)
     gp: SingleTaskGP = GPs[set_identifier]
-    
-    # if type_trial == 'max':
-    #     acqf = LogExpectedImprovement(gp, best_f=global_optimum)
-    # else:
-    #     acqf = LogExpectedImprovement(gp, best_f=global_optimum, maximize=False)
 
     current_value = torch.tensor(global_optimum)
     acqf = qKnowledgeGradient(
@@ -363,6 +354,7 @@ def intervention_threaded(args):
 
     new_x = candidates.detach()
 
+    # Negative KG-value for minimization
     if type_trial == 'min':
         improvement = -1 * improvement
 

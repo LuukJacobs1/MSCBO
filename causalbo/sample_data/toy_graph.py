@@ -6,6 +6,7 @@ from dowhy.gcm.causal_mechanisms import StochasticModel, ConditionalStochasticMo
 import numpy as np
 
 
+# Possibility to provide predefined node connections
 class XModel(StochasticModel):
     def draw_samples(self, num_samples: int):
         prob = torch.linspace(-5, 5, num_samples).view(-1,1)

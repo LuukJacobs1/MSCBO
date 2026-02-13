@@ -7,9 +7,7 @@ from typing import Iterable, List, Tuple, Dict, Any, Optional
 from threading import Lock
 
 
-# -----------------------------
 # SCM and do-calculus operations
-# -----------------------------
 class SCM():
     """
     Light wrapper around a networkx DiGraph + DoWhy-GCM model.
@@ -53,7 +51,6 @@ class SCM():
                 )
 
         # In-memory cache: key=(tuple(vars), tuple(vals)) -> (mean, var)
-        # You can clear this if you refit the SCM.
         self._do_cache: Dict[Tuple[Tuple[str, ...], Tuple[float, ...]], Tuple[float, float]] = {}
 
         # Keep the last fitted data around for interventional sampling conditioning.
@@ -69,14 +66,12 @@ class SCM():
                 # auto-assign mechanisms
                 gcm.auto.assign_causal_mechanisms(self.causal_model, observational_samples)
         gcm.fit(self.causal_model, observational_samples)
-        # fitting changes the model; cached do-statistics may be stale
+        # fitting changes the model, cached do-statistics may be stale
         self._do_cache.clear()
 
     # Draw graph
     def draw(self):
         draw(self.graph, with_labels=True)
-
-    # ---------- Batched helpers with caching ----------
 
     def _do_key(self, interventional_variable: Iterable[str], interventional_value: Iterable[float]) -> Tuple[Tuple[str, ...], Tuple[float, ...]]:
         return (tuple(interventional_variable), tuple(float(v) for v in interventional_value))
